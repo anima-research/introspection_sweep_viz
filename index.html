@@ -1,0 +1,2438 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Logit Lens Sweep — Introspection Manifold</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500&family=Playfair+Display:wght@400;700&display=swap');
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        :root {
+            --bg-primary: #0a0a0f;
+            --bg-secondary: #12121a;
+            --accent-cold: #4ecdc4;
+            --accent-warm: #ff6b6b;
+            --accent-gold: #ffd93d;
+            --text-primary: #e8e8f0;
+            --text-secondary: #8888a0;
+            --border-subtle: rgba(255,255,255,0.08);
+        }
+        
+        body {
+            font-family: 'JetBrains Mono', monospace;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            overflow: hidden;
+            height: 100vh;
+            width: 100vw;
+        }
+        
+        #canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+        
+        .overlay {
+            position: fixed;
+            z-index: 10;
+            pointer-events: none;
+        }
+        
+        .overlay > * {
+            pointer-events: auto;
+        }
+        
+        .title-panel {
+            top: 24px;
+            left: 24px;
+        }
+        
+        .title-panel h1 {
+            font-family: 'Playfair Display', serif;
+            font-size: 28px;
+            font-weight: 400;
+            letter-spacing: 0.02em;
+            margin-bottom: 4px;
+            background: linear-gradient(135deg, var(--accent-cold), var(--accent-gold));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .title-panel .subtitle {
+            font-size: 11px;
+            color: var(--text-secondary);
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+        }
+        
+        .controls-panel {
+            bottom: 24px;
+            left: 24px;
+            background: rgba(12, 12, 18, 0.85);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--border-subtle);
+            border-radius: 12px;
+            padding: 20px;
+            width: 320px;
+        }
+        
+        .control-group {
+            margin-bottom: 16px;
+        }
+        
+        .control-group:last-child {
+            margin-bottom: 0;
+        }
+        
+        .control-label {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+            color: var(--text-secondary);
+        }
+        
+        .control-value {
+            color: var(--accent-cold);
+            font-weight: 500;
+        }
+        
+        input[type="range"] {
+            width: 100%;
+            height: 4px;
+            -webkit-appearance: none;
+            appearance: none;
+            background: linear-gradient(90deg, var(--accent-cold), var(--accent-warm));
+            border-radius: 2px;
+            outline: none;
+        }
+        
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 14px;
+            height: 14px;
+            background: var(--text-primary);
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+            transition: transform 0.15s ease;
+        }
+        
+        input[type="range"]::-webkit-slider-thumb:hover {
+            transform: scale(1.2);
+        }
+        
+        .view-modes {
+            display: flex;
+            gap: 8px;
+        }
+        
+        .view-mode-btn {
+            flex: 1;
+            padding: 6px 8px;
+            background: transparent;
+            border: 1px solid var(--border-subtle);
+            border-radius: 6px;
+            color: var(--text-secondary);
+            font-family: inherit;
+            font-size: 9px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            min-width: 0;
+        }
+        
+        .view-mode-btn.active {
+            background: var(--accent-cold);
+            border-color: var(--accent-cold);
+            color: var(--bg-primary);
+        }
+        
+        .view-mode-btn:hover:not(.active) {
+            border-color: var(--accent-cold);
+            color: var(--accent-cold);
+        }
+        
+        .stats-panel {
+            top: 24px;
+            right: 24px;
+            background: rgba(12, 12, 18, 0.85);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--border-subtle);
+            border-radius: 12px;
+            padding: 16px 20px;
+            min-width: 200px;
+        }
+        
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            padding: 4px 0;
+            font-size: 11px;
+        }
+        
+        .stat-label {
+            color: var(--text-secondary);
+        }
+        
+        .stat-value {
+            font-weight: 500;
+            color: var(--accent-gold);
+        }
+        
+        .legend-panel {
+            bottom: 24px;
+            right: 24px;
+            background: rgba(12, 12, 18, 0.85);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--border-subtle);
+            border-radius: 12px;
+            padding: 16px;
+        }
+        
+        .legend-gradient {
+            width: 200px;
+            height: 12px;
+            border-radius: 6px;
+            margin-bottom: 8px;
+        }
+        
+        .legend-labels {
+            display: flex;
+            justify-content: space-between;
+            font-size: 9px;
+            color: var(--text-secondary);
+        }
+        
+        .hint {
+            position: fixed;
+            bottom: 24px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 10px;
+            color: var(--text-secondary);
+            letter-spacing: 0.1em;
+            z-index: 10;
+            opacity: 0.6;
+        }
+        
+        .loading {
+            position: fixed;
+            inset: 0;
+            background: var(--bg-primary);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            transition: opacity 0.5s ease;
+        }
+        
+        .loading.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+        
+        .loading-spinner {
+            width: 48px;
+            height: 48px;
+            border: 2px solid var(--border-subtle);
+            border-top-color: var(--accent-cold);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 16px;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .loading-text {
+            font-size: 11px;
+            color: var(--text-secondary);
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+        }
+        
+        .toggle-switch {
+            position: relative;
+            width: 36px;
+            height: 18px;
+            cursor: pointer;
+        }
+        
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        
+        .toggle-slider {
+            position: absolute;
+            inset: 0;
+            background: var(--border-subtle);
+            border-radius: 9px;
+            transition: 0.2s;
+        }
+        
+        .toggle-slider::before {
+            content: '';
+            position: absolute;
+            width: 14px;
+            height: 14px;
+            left: 2px;
+            bottom: 2px;
+            background: var(--text-secondary);
+            border-radius: 50%;
+            transition: 0.2s;
+        }
+        
+        .toggle-switch input:checked + .toggle-slider {
+            background: var(--accent-cold);
+        }
+        
+        .toggle-switch input:checked + .toggle-slider::before {
+            transform: translateX(18px);
+            background: var(--bg-primary);
+        }
+        
+        .axis-labels {
+            bottom: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 24px;
+            background: rgba(12, 12, 18, 0.85);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--border-subtle);
+            border-radius: 8px;
+            padding: 10px 16px;
+        }
+        
+        .axis-label {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 11px;
+        }
+        
+        .axis-arrow {
+            font-size: 14px;
+            font-weight: bold;
+        }
+        
+        .x-axis .axis-arrow { color: #ff6666; }
+        .y-axis .axis-arrow { color: #66ff66; }
+        .z-axis .axis-arrow { color: #6699ff; }
+        
+        .axis-indicator {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border-radius: 3px;
+            text-align: center;
+            font-weight: bold;
+            font-size: 10px;
+            line-height: 16px;
+            margin-right: 4px;
+        }
+        
+        .axis-indicator.x { background: rgba(255, 102, 102, 0.3); color: #ff6666; }
+        .axis-indicator.y { background: rgba(102, 255, 102, 0.3); color: #66ff66; }
+        .axis-indicator.z { background: rgba(102, 153, 255, 0.3); color: #6699ff; }
+        
+        /* Detail Panel for clicked point */
+        .detail-panel {
+            position: fixed;
+            top: 0;
+            right: -420px;
+            width: 400px;
+            height: 100vh;
+            background: rgba(12, 12, 18, 0.95);
+            backdrop-filter: blur(20px);
+            border-left: 1px solid var(--border-subtle);
+            padding: 24px;
+            z-index: 20;
+            transition: right 0.3s ease;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .detail-panel.visible {
+            right: 0;
+        }
+        
+        .detail-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 16px;
+        }
+        
+        .detail-title {
+            font-family: 'Playfair Display', serif;
+            font-size: 18px;
+            margin-bottom: 4px;
+            color: var(--accent-gold);
+        }
+        
+        .detail-subtitle {
+            font-size: 11px;
+            color: var(--text-secondary);
+        }
+        
+        .detail-close {
+            background: transparent;
+            border: 1px solid var(--border-subtle);
+            color: var(--text-secondary);
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 16px;
+            line-height: 1;
+            transition: all 0.2s;
+        }
+        
+        .detail-close:hover {
+            border-color: var(--accent-warm);
+            color: var(--accent-warm);
+        }
+        
+        .detail-info {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 20px;
+            padding: 12px;
+            background: rgba(255,255,255,0.03);
+            border-radius: 8px;
+        }
+        
+        .detail-info-item {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+        
+        .detail-info-label {
+            font-size: 9px;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--text-secondary);
+        }
+        
+        .detail-info-value {
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+        
+        .detail-chart-container {
+            flex: 1;
+            position: relative;
+            background: rgba(0,0,0,0.3);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        
+        #detailChart {
+            width: 100%;
+            height: 100%;
+        }
+        
+        .detail-legend {
+            display: flex;
+            gap: 16px;
+            justify-content: center;
+            margin-top: 12px;
+            font-size: 11px;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .legend-color {
+            width: 12px;
+            height: 3px;
+            border-radius: 1px;
+        }
+        
+        .legend-color.base { background: var(--text-secondary); }
+        .legend-color.steered { background: var(--accent-cold); }
+        
+        .dual-range {
+            position: relative;
+            height: 20px;
+        }
+        
+        .dual-range input[type="range"] {
+            position: absolute;
+            width: 100%;
+            pointer-events: none;
+            background: transparent;
+        }
+        
+        .dual-range input[type="range"]::-webkit-slider-thumb {
+            pointer-events: auto;
+        }
+        
+        .slice-control .control-label {
+            display: flex;
+            align-items: center;
+        }
+        
+        .slice-control .control-label span:nth-child(2) {
+            flex: 1;
+        }
+        
+        .axis-name {
+            color: var(--text-primary);
+            font-weight: 500;
+        }
+        
+        .axis-range {
+            color: var(--text-secondary);
+            font-size: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="loading" id="loading">
+        <div class="loading-spinner"></div>
+        <div class="loading-text">Loading manifold data...</div>
+    </div>
+    
+    <canvas id="canvas"></canvas>
+    
+    <div class="overlay title-panel">
+        <h1>Introspection Manifold</h1>
+        <div class="subtitle">Logit Lens × Layer Injection Sweep</div>
+        <div class="credits" style="margin-top: 8px; font-size: 11px; color: #888; line-height: 1.5;">
+            Research & Data: <a href="https://vgel.me/" target="_blank" style="color: #6af;">Theia Vogel</a><br>
+            Visualization: <a href="https://animalabs.ai" target="_blank" style="color: #6af;">Antra Tessera</a>
+        </div>
+    </div>
+    
+    <div class="overlay controls-panel">
+        <div class="control-group slice-control">
+            <div class="control-label">
+                <span class="axis-indicator x">X</span>
+                <span>Injection Start</span>
+                <span class="control-value" id="sliceXValue">1-63</span>
+            </div>
+            <div class="dual-range">
+                <input type="range" id="sliceXMin" min="0" max="100" value="0" class="range-min">
+                <input type="range" id="sliceXMax" min="0" max="100" value="100" class="range-max">
+            </div>
+        </div>
+        
+        <div class="control-group slice-control">
+            <div class="control-label">
+                <span class="axis-indicator y">Y</span>
+                <span>Injection End</span>
+                <span class="control-value" id="sliceYValue">1-63</span>
+            </div>
+            <div class="dual-range">
+                <input type="range" id="sliceYMin" min="0" max="100" value="0" class="range-min">
+                <input type="range" id="sliceYMax" min="0" max="100" value="100" class="range-max">
+            </div>
+        </div>
+        
+        <div class="control-group slice-control">
+            <div class="control-label">
+                <span class="axis-indicator z">Z</span>
+                <span>Observation Layer</span>
+                <span class="control-value" id="sliceZValue">0-64</span>
+            </div>
+            <div class="dual-range">
+                <input type="range" id="sliceZMin" min="0" max="100" value="0" class="range-min">
+                <input type="range" id="sliceZMax" min="0" max="100" value="100" class="range-max">
+            </div>
+        </div>
+        
+        <div class="control-group">
+            <div class="control-label">Color Mode</div>
+            <div class="view-modes" style="flex-wrap: wrap; gap: 6px;">
+                <button class="view-mode-btn" data-mode="base">Base</button>
+                <button class="view-mode-btn" data-mode="steered">Steered</button>
+                <button class="view-mode-btn active" data-mode="diff">Δ Abs</button>
+                <button class="view-mode-btn" data-mode="diffrel">Δ Rel%</button>
+            </div>
+        </div>
+        
+        <div class="control-group" style="background: rgba(100, 200, 255, 0.1); padding: 10px; margin: -5px -10px; border-radius: 6px;">
+            <div class="control-label">
+                <span style="font-weight: 600;">🎨 Color Scale Range</span>
+                <span class="control-value" id="colorScaleValue">-4% to +100%</span>
+            </div>
+            <div class="dual-range">
+                <input type="range" id="colorScaleMin" min="-100" max="100" value="-4" class="range-min">
+                <input type="range" id="colorScaleMax" min="-100" max="100" value="100" class="range-max">
+            </div>
+            <div class="control-label" style="margin-top: 8px;">
+                <span>Auto-Scale</span>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="autoScaleToggle">
+                    <span class="toggle-slider"></span>
+                </label>
+            </div>
+        </div>
+        
+        <div class="control-group">
+            <div class="control-label">
+                <span>Point Size</span>
+                <span class="control-value" id="sizeValue">0.5</span>
+            </div>
+            <input type="range" id="sizeSlider" min="5" max="100" value="12">
+        </div>
+        
+        <div class="control-group">
+            <div class="control-label">
+                <span>Clip to Color Scale</span>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="clipToScaleToggle">
+                    <span class="toggle-slider"></span>
+                </label>
+            </div>
+        </div>
+        
+        <details style="margin-top: 8px;">
+            <summary style="cursor: pointer; color: #888; font-size: 11px;">Advanced Opacity Controls</summary>
+            <div style="margin-top: 10px;">
+                <div class="control-group">
+                    <div class="control-label">
+                        <span>Value Threshold</span>
+                        <span class="control-value" id="thresholdValue">0.1000</span>
+                    </div>
+                    <input type="range" id="thresholdSlider" min="0" max="100" value="50">
+                </div>
+                
+                <div class="control-group">
+                    <div class="control-label">
+                        <span>Opacity</span>
+                        <span class="control-value" id="opacityValue">1.00</span>
+                    </div>
+                    <input type="range" id="opacitySlider" min="5" max="100" value="100">
+                </div>
+                
+                <div class="control-group">
+                    <div class="control-label">
+                        <span>Fade Steepness</span>
+                        <span class="control-value" id="steepnessValue">3.2</span>
+                    </div>
+                    <input type="range" id="steepnessSlider" min="5" max="100" value="32">
+                </div>
+                
+                <div class="control-group">
+                    <div class="control-label">
+                        <span>Opacity Gamma</span>
+                        <span class="control-value" id="opacityGammaValue">3.7</span>
+                    </div>
+                    <input type="range" id="opacityGammaSlider" min="10" max="50" value="37">
+                </div>
+                
+                <div class="control-group">
+                    <div class="control-label">
+                        <span>Intensity → Opacity</span>
+                        <span class="control-value" id="intensityOpacityValue">82%</span>
+                    </div>
+                    <input type="range" id="intensityOpacitySlider" min="0" max="100" value="82">
+                </div>
+            </div>
+        </details>
+    </div>
+    
+    <div class="overlay stats-panel">
+        <div class="stat-row">
+            <span class="stat-label">Visible Points</span>
+            <span class="stat-value" id="pointCount">—</span>
+        </div>
+        <div class="stat-row">
+            <span class="stat-label">Max Value</span>
+            <span class="stat-value" id="maxValue">—</span>
+        </div>
+        <div class="stat-row">
+            <span class="stat-label">Injection Range</span>
+            <span class="stat-value" id="rangeValue">—</span>
+        </div>
+    </div>
+    
+    <div class="overlay legend-panel">
+        <div class="legend-gradient" id="legendGradient"></div>
+        <div class="legend-labels">
+            <span>Low</span>
+            <span>High</span>
+        </div>
+    </div>
+    
+    <div class="hint">Drag to rotate • Scroll to zoom • Shift+drag to pan • Click point to inspect</div>
+    
+    <!-- Detail panel for clicked point -->
+    <div class="detail-panel" id="detailPanel">
+        <div class="detail-header">
+            <div>
+                <div class="detail-title">Logit Lens Profile</div>
+                <div class="detail-subtitle" id="detailSubtitle">Injection [?-?]</div>
+            </div>
+            <button class="detail-close" id="detailClose">×</button>
+        </div>
+        
+        <div class="detail-info">
+            <div class="detail-info-item">
+                <span class="detail-info-label">Injection Start</span>
+                <span class="detail-info-value" id="infoStart">—</span>
+            </div>
+            <div class="detail-info-item">
+                <span class="detail-info-label">Injection End</span>
+                <span class="detail-info-value" id="infoEnd">—</span>
+            </div>
+            <div class="detail-info-item">
+                <span class="detail-info-label">Clicked Layer</span>
+                <span class="detail-info-value" id="infoLayer">—</span>
+            </div>
+            <div class="detail-info-item">
+                <span class="detail-info-label">Value at Layer</span>
+                <span class="detail-info-value" id="infoValue">—</span>
+            </div>
+        </div>
+        
+        <div class="detail-chart-container">
+            <canvas id="detailChart"></canvas>
+        </div>
+        
+        <div class="detail-legend">
+            <div class="legend-item">
+                <div class="legend-color base"></div>
+                <span>Base (no steering)</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color steered"></div>
+                <span>Steered</span>
+            </div>
+        </div>
+    </div>
+    
+    <div class="axis-labels overlay">
+        <div class="axis-label x-axis">
+            <span class="axis-arrow">→</span>
+            <span class="axis-name">X: Injection Start</span>
+            <span class="axis-range">(Layer 1-63)</span>
+        </div>
+        <div class="axis-label y-axis">
+            <span class="axis-arrow">→</span>
+            <span class="axis-name">Y: Injection End</span>
+            <span class="axis-range">(Layer 1-63)</span>
+        </div>
+        <div class="axis-label z-axis">
+            <span class="axis-arrow">→</span>
+            <span class="axis-name">Z: Observation Layer</span>
+            <span class="axis-range">(Layer 0-64)</span>
+        </div>
+    </div>
+    
+    <script>
+        // WebGL setup
+        const canvas = document.getElementById('canvas');
+        const gl = canvas.getContext('webgl2', { 
+            antialias: true,
+            alpha: false,
+            preserveDrawingBuffer: true
+        });
+        
+        if (!gl) {
+            alert('WebGL2 not supported');
+            throw new Error('WebGL2 not supported');
+        }
+        
+        // Enable extensions
+        gl.getExtension('OES_element_index_uint');
+        gl.getExtension('EXT_color_buffer_float');
+        
+        // Shader sources
+        const vertexShaderSource = `#version 300 es
+            precision highp float;
+            precision highp int;
+            
+            in vec3 aPosition;
+            in float aValue;
+            in float aBaseValue;
+            in float aLayer;
+            
+            uniform mat4 uProjection;
+            uniform mat4 uView;
+            uniform mat4 uModel;
+            uniform float uPointSize;
+            uniform float uThreshold;
+            uniform float uSteepness;       // Sigmoid steepness (1-10)
+            uniform float uOpacityGamma;    // Power curve for opacity (1-5)
+            uniform float uIntensityEffect; // How much intensity affects opacity (0-1)
+            uniform int uViewMode;
+            uniform float uTime;
+            // Slice ranges (normalized -1 to 1)
+            uniform vec2 uSliceX; // min, max
+            uniform vec2 uSliceY;
+            uniform vec2 uSliceZ;
+            
+            out float vValue;
+            out float vAlpha;
+            out vec3 vWorldPos;
+            
+            void main() {
+                vec3 pos = aPosition;
+                vec4 worldPos = uModel * vec4(pos, 1.0);
+                vec4 viewPos = uView * worldPos;
+                gl_Position = uProjection * viewPos;
+                
+                float displayValue;
+                if (uViewMode == 0) {
+                    // Base: show base value only
+                    displayValue = aBaseValue;
+                } else if (uViewMode == 1) {
+                    // Steered: show steered value
+                    displayValue = aValue;
+                } else if (uViewMode == 2) {
+                    // Diff absolute: show difference from base
+                    displayValue = aValue - aBaseValue;
+                } else if (uViewMode == 3) {
+                    // Diff relative: show percentage change from base
+                    displayValue = (aBaseValue > 0.001) ? (aValue - aBaseValue) / aBaseValue : 0.0;
+                } else {
+                    displayValue = aValue;
+                }
+                
+                vValue = displayValue;
+                vWorldPos = worldPos.xyz;
+                
+                // Calculate slice visibility - smooth falloff at edges
+                float sliceX = smoothstep(uSliceX.x - 0.05, uSliceX.x + 0.02, pos.x) * 
+                               smoothstep(uSliceX.y + 0.05, uSliceX.y - 0.02, pos.x);
+                float sliceY = smoothstep(uSliceY.x - 0.05, uSliceY.x + 0.02, pos.y) * 
+                               smoothstep(uSliceY.y + 0.05, uSliceY.y - 0.02, pos.y);
+                float sliceZ = smoothstep(uSliceZ.x - 0.05, uSliceZ.x + 0.02, pos.z) * 
+                               smoothstep(uSliceZ.y + 0.05, uSliceZ.y - 0.02, pos.z);
+                float sliceVis = sliceX * sliceY * sliceZ;
+                
+                // Threshold as inflection point in sigmoid opacity curve
+                float logVal = log(1.0 + abs(displayValue));
+                float logThresh = log(1.0 + uThreshold);
+                float sigmoid = 1.0 / (1.0 + exp(-uSteepness * (logVal - logThresh)));
+                
+                // Apply gamma curve to make low values more transparent
+                float opacityValue = pow(sigmoid, uOpacityGamma);
+                
+                vAlpha = sliceVis * opacityValue;
+                
+                // Dynamic point sizing
+                float depth = -viewPos.z;
+                float valueMag = log(1.0 + abs(displayValue)) / log(100.0);
+                // Simpler: uPointSize directly controls base, depth just adjusts slightly
+                gl_PointSize = uPointSize * (valueMag + 0.5) * (4.0 / max(depth, 1.0));
+                gl_PointSize = clamp(gl_PointSize, 1.0, 150.0);
+                
+                // Hide points with negligible visibility
+                if (vAlpha < 0.02) {
+                    gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
+                }
+            }
+        `;
+        
+        const fragmentShaderSource = `#version 300 es
+            precision highp float;
+            precision highp int;
+            
+            in float vValue;
+            in float vAlpha;
+            in vec3 vWorldPos;
+            
+            uniform float uMaxValue;
+            uniform float uMinValue;
+            uniform float uTime;
+            uniform float uOpacity;
+            uniform float uIntensityEffect; // How much intensity affects opacity (0-1)
+            uniform int uClipToScale;       // If 1, values outside color scale become transparent
+            uniform int uViewMode;
+            
+            out vec4 fragColor;
+            
+            vec3 viridis(float t) {
+                const vec3 c0 = vec3(0.267004, 0.004874, 0.329415);
+                const vec3 c1 = vec3(0.282327, 0.140926, 0.457517);
+                const vec3 c2 = vec3(0.253935, 0.265254, 0.529983);
+                const vec3 c3 = vec3(0.206756, 0.371758, 0.553117);
+                const vec3 c4 = vec3(0.163625, 0.471133, 0.558148);
+                const vec3 c5 = vec3(0.127568, 0.566949, 0.550556);
+                const vec3 c6 = vec3(0.134692, 0.658636, 0.517649);
+                const vec3 c7 = vec3(0.266941, 0.748751, 0.440573);
+                const vec3 c8 = vec3(0.477504, 0.821444, 0.318195);
+                const vec3 c9 = vec3(0.741388, 0.873449, 0.149561);
+                const vec3 c10 = vec3(0.993248, 0.906157, 0.143936);
+                
+                t = clamp(t, 0.0, 1.0);
+                float idx = t * 10.0;
+                int i = int(idx);
+                float f = fract(idx);
+                
+                vec3 c;
+                if (i == 0) c = mix(c0, c1, f);
+                else if (i == 1) c = mix(c1, c2, f);
+                else if (i == 2) c = mix(c2, c3, f);
+                else if (i == 3) c = mix(c3, c4, f);
+                else if (i == 4) c = mix(c4, c5, f);
+                else if (i == 5) c = mix(c5, c6, f);
+                else if (i == 6) c = mix(c6, c7, f);
+                else if (i == 7) c = mix(c7, c8, f);
+                else if (i == 8) c = mix(c8, c9, f);
+                else c = mix(c9, c10, f);
+                
+                return c;
+            }
+            
+            vec3 inferno(float t) {
+                const vec3 c0 = vec3(0.001462, 0.000466, 0.013866);
+                const vec3 c1 = vec3(0.087411, 0.044556, 0.224813);
+                const vec3 c2 = vec3(0.258234, 0.038571, 0.406152);
+                const vec3 c3 = vec3(0.416331, 0.090834, 0.432943);
+                const vec3 c4 = vec3(0.578304, 0.148039, 0.404411);
+                const vec3 c5 = vec3(0.735683, 0.215906, 0.330245);
+                const vec3 c6 = vec3(0.865006, 0.316822, 0.226055);
+                const vec3 c7 = vec3(0.954506, 0.468744, 0.099874);
+                const vec3 c8 = vec3(0.987622, 0.645320, 0.039886);
+                const vec3 c9 = vec3(0.964394, 0.843848, 0.273391);
+                const vec3 c10 = vec3(0.988362, 0.998364, 0.644924);
+                
+                t = clamp(t, 0.0, 1.0);
+                float idx = t * 10.0;
+                int i = int(idx);
+                float f = fract(idx);
+                
+                vec3 c;
+                if (i == 0) c = mix(c0, c1, f);
+                else if (i == 1) c = mix(c1, c2, f);
+                else if (i == 2) c = mix(c2, c3, f);
+                else if (i == 3) c = mix(c3, c4, f);
+                else if (i == 4) c = mix(c4, c5, f);
+                else if (i == 5) c = mix(c5, c6, f);
+                else if (i == 6) c = mix(c6, c7, f);
+                else if (i == 7) c = mix(c7, c8, f);
+                else if (i == 8) c = mix(c8, c9, f);
+                else c = mix(c9, c10, f);
+                
+                return c;
+            }
+            
+            // Diverging colormap using viridis for negative, inferno for positive
+            vec3 diverging(float t) {
+                // t: -1 to 1
+                t = clamp(t, -1.0, 1.0);
+                
+                if (t < 0.0) {
+                    // Negative: viridis (reversed so more negative = brighter)
+                    float s = -t; // 0 to 1
+                    return viridis(s);
+                } else {
+                    // Positive: inferno (full range)
+                    return inferno(t);
+                }
+            }
+            
+            void main() {
+                // Sharper circular point
+                vec2 coord = gl_PointCoord * 2.0 - 1.0;
+                float r = length(coord);
+                if (r > 1.0) discard;
+                
+                // Sharp edge with minimal antialiasing
+                float softEdge = smoothstep(1.0, 0.85, r);
+                
+                vec3 color;
+                float intensity;
+                
+                if (uViewMode == 2 || uViewMode == 3) {
+                    // Diff modes (absolute and relative): diverging colormap
+                    float range = uMaxValue - uMinValue;
+                    float normalized;
+                    
+                    if (range < 0.001) {
+                        // Edge case: very small range
+                        normalized = 0.0;
+                    } else if (uMinValue >= 0.0) {
+                        // Both bounds positive: map to upper half of colormap (0 to 1)
+                        normalized = (vValue - uMinValue) / range;
+                        normalized = clamp(normalized, 0.0, 1.0);
+                    } else if (uMaxValue <= 0.0) {
+                        // Both bounds negative: map to lower half of colormap (-1 to 0)
+                        normalized = (vValue - uMaxValue) / range; // Note: range is negative
+                        normalized = clamp(normalized, -1.0, 0.0);
+                    } else {
+                        // Spans zero: use symmetric mapping around 0
+                        if (vValue < 0.0) {
+                            normalized = vValue / max(abs(uMinValue), 0.001);
+                            normalized = clamp(normalized, -1.0, 0.0);
+                        } else {
+                            normalized = vValue / max(uMaxValue, 0.001);
+                            normalized = clamp(normalized, 0.0, 1.0);
+                        }
+                    }
+                    
+                    color = diverging(normalized);
+                    intensity = abs(normalized);
+                } else {
+                    // Base (0) or Steered (1) mode: linear scale with inferno colormap
+                    float range = uMaxValue - uMinValue;
+                    float normalized = (vValue - uMinValue) / max(range, 0.001);
+                    normalized = clamp(normalized, 0.0, 1.0);
+                    
+                    color = inferno(normalized);
+                    
+                    // Add subtle glow for high values
+                    float glow = pow(normalized, 3.0) * 0.3;
+                    color += glow;
+                    
+                    intensity = normalized;
+                }
+                
+                // Tight core highlight
+                float core = smoothstep(0.3, 0.0, r) * 0.2;
+                color += core;
+                
+                // Standard alpha (sorted back-to-front)
+                // uIntensityEffect controls how much low-intensity colors are hidden
+                float intensityFactor = mix(1.0, intensity, uIntensityEffect);
+                
+                // Apply gamma to intensity factor for more aggressive hiding
+                intensityFactor = pow(intensityFactor, 1.0 + uIntensityEffect * 2.0);
+                
+                float alpha = softEdge * vAlpha * uOpacity * intensityFactor;
+                
+                // If clip to scale is enabled, hide values outside the color scale range
+                if (uClipToScale == 1) {
+                    if (vValue < uMinValue || vValue > uMaxValue) {
+                        alpha = 0.0;
+                    }
+                }
+                
+                fragColor = vec4(color, alpha);
+            }
+        `;
+        
+        // Grid/axis shader
+        const gridVertexSource = `#version 300 es
+            precision highp float;
+            
+            in vec3 aPosition;
+            in vec3 aColor;
+            
+            uniform mat4 uProjection;
+            uniform mat4 uView;
+            uniform mat4 uModel;
+            
+            out vec3 vWorldPos;
+            out vec3 vColor;
+            
+            void main() {
+                vec4 worldPos = uModel * vec4(aPosition, 1.0);
+                gl_Position = uProjection * uView * worldPos;
+                vWorldPos = worldPos.xyz;
+                vColor = aColor;
+            }
+        `;
+        
+        const gridFragmentSource = `#version 300 es
+            precision highp float;
+            
+            in vec3 vWorldPos;
+            in vec3 vColor;
+            
+            out vec4 fragColor;
+            
+            void main() {
+                // Constraint planes have low red or green - make them very transparent
+                // Teal plane: (0.2, 0.4, 0.5), Purple plane: (0.4, 0.2, 0.5)
+                bool isPlane = (vColor.r < 0.5 && vColor.b > 0.4);
+                float alpha = isPlane ? 0.12 : 0.8;
+                fragColor = vec4(vColor, alpha);
+            }
+        `;
+        
+        // Compile shader
+        function compileShader(source, type) {
+            const shader = gl.createShader(type);
+            gl.shaderSource(shader, source);
+            gl.compileShader(shader);
+            if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+                console.error('Shader error:', gl.getShaderInfoLog(shader));
+                return null;
+            }
+            return shader;
+        }
+        
+        // Create program
+        function createProgram(vsSource, fsSource) {
+            const vs = compileShader(vsSource, gl.VERTEX_SHADER);
+            const fs = compileShader(fsSource, gl.FRAGMENT_SHADER);
+            const program = gl.createProgram();
+            gl.attachShader(program, vs);
+            gl.attachShader(program, fs);
+            gl.linkProgram(program);
+            if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+                console.error('Program error:', gl.getProgramInfoLog(program));
+                return null;
+            }
+            return program;
+        }
+        
+        const pointProgram = createProgram(vertexShaderSource, fragmentShaderSource);
+        const gridProgram = createProgram(gridVertexSource, gridFragmentSource);
+        
+        // Get uniform/attribute locations
+        const pointLocs = {
+            aPosition: gl.getAttribLocation(pointProgram, 'aPosition'),
+            aValue: gl.getAttribLocation(pointProgram, 'aValue'),
+            aBaseValue: gl.getAttribLocation(pointProgram, 'aBaseValue'),
+            aLayer: gl.getAttribLocation(pointProgram, 'aLayer'),
+            uProjection: gl.getUniformLocation(pointProgram, 'uProjection'),
+            uView: gl.getUniformLocation(pointProgram, 'uView'),
+            uModel: gl.getUniformLocation(pointProgram, 'uModel'),
+            uPointSize: gl.getUniformLocation(pointProgram, 'uPointSize'),
+            uThreshold: gl.getUniformLocation(pointProgram, 'uThreshold'),
+            uSteepness: gl.getUniformLocation(pointProgram, 'uSteepness'),
+            uOpacityGamma: gl.getUniformLocation(pointProgram, 'uOpacityGamma'),
+            uIntensityEffect: gl.getUniformLocation(pointProgram, 'uIntensityEffect'),
+            uClipToScale: gl.getUniformLocation(pointProgram, 'uClipToScale'),
+            uViewMode: gl.getUniformLocation(pointProgram, 'uViewMode'),
+            uSliceX: gl.getUniformLocation(pointProgram, 'uSliceX'),
+            uSliceY: gl.getUniformLocation(pointProgram, 'uSliceY'),
+            uSliceZ: gl.getUniformLocation(pointProgram, 'uSliceZ'),
+            uMaxValue: gl.getUniformLocation(pointProgram, 'uMaxValue'),
+            uMinValue: gl.getUniformLocation(pointProgram, 'uMinValue'),
+            uTime: gl.getUniformLocation(pointProgram, 'uTime'),
+            uOpacity: gl.getUniformLocation(pointProgram, 'uOpacity')
+        };
+        
+        const gridLocs = {
+            aPosition: gl.getAttribLocation(gridProgram, 'aPosition'),
+            aColor: gl.getAttribLocation(gridProgram, 'aColor'),
+            uProjection: gl.getUniformLocation(gridProgram, 'uProjection'),
+            uView: gl.getUniformLocation(gridProgram, 'uView'),
+            uModel: gl.getUniformLocation(gridProgram, 'uModel')
+        };
+        
+        // Matrix utilities
+        function perspective(fov, aspect, near, far) {
+            const f = 1.0 / Math.tan(fov / 2);
+            const nf = 1 / (near - far);
+            return new Float32Array([
+                f / aspect, 0, 0, 0,
+                0, f, 0, 0,
+                0, 0, (far + near) * nf, -1,
+                0, 0, 2 * far * near * nf, 0
+            ]);
+        }
+        
+        function lookAt(eye, center, up) {
+            const z = normalize(sub(eye, center));
+            const x = normalize(cross(up, z));
+            const y = cross(z, x);
+            return new Float32Array([
+                x[0], y[0], z[0], 0,
+                x[1], y[1], z[1], 0,
+                x[2], y[2], z[2], 0,
+                -dot(x, eye), -dot(y, eye), -dot(z, eye), 1
+            ]);
+        }
+        
+        function rotateY(m, angle) {
+            const c = Math.cos(angle);
+            const s = Math.sin(angle);
+            const result = new Float32Array(16);
+            result[0] = m[0] * c + m[8] * s;
+            result[1] = m[1] * c + m[9] * s;
+            result[2] = m[2] * c + m[10] * s;
+            result[3] = m[3] * c + m[11] * s;
+            result[4] = m[4];
+            result[5] = m[5];
+            result[6] = m[6];
+            result[7] = m[7];
+            result[8] = m[8] * c - m[0] * s;
+            result[9] = m[9] * c - m[1] * s;
+            result[10] = m[10] * c - m[2] * s;
+            result[11] = m[11] * c - m[3] * s;
+            result[12] = m[12];
+            result[13] = m[13];
+            result[14] = m[14];
+            result[15] = m[15];
+            return result;
+        }
+        
+        function rotateX(m, angle) {
+            const c = Math.cos(angle);
+            const s = Math.sin(angle);
+            const result = new Float32Array(16);
+            result[0] = m[0];
+            result[1] = m[1];
+            result[2] = m[2];
+            result[3] = m[3];
+            result[4] = m[4] * c - m[8] * s;
+            result[5] = m[5] * c - m[9] * s;
+            result[6] = m[6] * c - m[10] * s;
+            result[7] = m[7] * c - m[11] * s;
+            result[8] = m[4] * s + m[8] * c;
+            result[9] = m[5] * s + m[9] * c;
+            result[10] = m[6] * s + m[10] * c;
+            result[11] = m[7] * s + m[11] * c;
+            result[12] = m[12];
+            result[13] = m[13];
+            result[14] = m[14];
+            result[15] = m[15];
+            return result;
+        }
+        
+        function identity() {
+            return new Float32Array([
+                1, 0, 0, 0,
+                0, 1, 0, 0,
+                0, 0, 1, 0,
+                0, 0, 0, 1
+            ]);
+        }
+        
+        function translate(m, v) {
+            const result = new Float32Array(m);
+            result[12] = m[0] * v[0] + m[4] * v[1] + m[8] * v[2] + m[12];
+            result[13] = m[1] * v[0] + m[5] * v[1] + m[9] * v[2] + m[13];
+            result[14] = m[2] * v[0] + m[6] * v[1] + m[10] * v[2] + m[14];
+            return result;
+        }
+        
+        function sub(a, b) { return [a[0] - b[0], a[1] - b[1], a[2] - b[2]]; }
+        function cross(a, b) { return [a[1]*b[2] - a[2]*b[1], a[2]*b[0] - a[0]*b[2], a[0]*b[1] - a[1]*b[0]]; }
+        function dot(a, b) { return a[0]*b[0] + a[1]*b[1] + a[2]*b[2]; }
+        function normalize(v) { const len = Math.sqrt(dot(v, v)); return [v[0]/len, v[1]/len, v[2]/len]; }
+        
+        // Data and buffers
+        let pointCount = 0;
+        let maxValue = 1;
+        let dataLoaded = false;
+        let allValues = []; // Store for recalculation
+        let allBaseValues = []; // Store base values for diff mode
+        let autoScaleColors = false;
+        let filteredMaxValue = 1;
+        
+        // Store raw data and point metadata for click inspection
+        let rawData = null;
+        let pointMetadata = []; // Array of {start, end, layer} for each point
+        let selectedPoint = null; // Currently selected point index
+        
+        // Create axes and grid with colors
+        const axisData = [];
+        const axisColors = [];
+        
+        // Axis colors: X=red, Y=green, Z=blue
+        const xColor = [1.0, 0.3, 0.3];
+        const yColor = [0.3, 1.0, 0.3];
+        const zColor = [0.4, 0.6, 1.0];
+        const gridColor = [0.3, 0.35, 0.4];
+        
+        // Main axes (thicker, extend from -1.2 to 1.2)
+        // X axis
+        axisData.push(-1.2, 0, 0, 1.2, 0, 0);
+        axisColors.push(...xColor, ...xColor);
+        // Y axis
+        axisData.push(0, -1.2, 0, 0, 1.2, 0);
+        axisColors.push(...yColor, ...yColor);
+        // Z axis
+        axisData.push(0, 0, -1.2, 0, 0, 1.2);
+        axisColors.push(...zColor, ...zColor);
+        
+        // Grid lines on XY plane (z=0) - subtle
+        for (let i = -10; i <= 10; i++) {
+            if (i === 0) continue; // skip center, we have axes
+            const t = i / 10;
+            // Parallel to X
+            axisData.push(-1, t, 0, 1, t, 0);
+            axisColors.push(...gridColor, ...gridColor);
+            // Parallel to Y
+            axisData.push(t, -1, 0, t, 1, 0);
+            axisColors.push(...gridColor, ...gridColor);
+        }
+        
+        // Grid lines on XZ plane (y=-1) - floor
+        for (let i = -10; i <= 10; i++) {
+            const t = i / 10;
+            // Parallel to X
+            axisData.push(-1, -1, t, 1, -1, t);
+            axisColors.push(...gridColor, ...gridColor);
+            // Parallel to Z
+            axisData.push(t, -1, -1, t, -1, 1);
+            axisColors.push(...gridColor, ...gridColor);
+        }
+        
+        // Grid lines on YZ plane (x=-1) - left wall
+        for (let i = -10; i <= 10; i++) {
+            const t = i / 10;
+            // Parallel to Y
+            axisData.push(-1, -1, t, -1, 1, t);
+            axisColors.push(...gridColor, ...gridColor);
+            // Parallel to Z
+            axisData.push(-1, t, -1, -1, t, 1);
+            axisColors.push(...gridColor, ...gridColor);
+        }
+        
+        const axisVertexCount = axisData.length / 3;
+        
+        const axisBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, axisBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(axisData), gl.STATIC_DRAW);
+        
+        const axisColorBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, axisColorBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(axisColors), gl.STATIC_DRAW);
+        
+        // Diagonal constraint plane:
+        // Coordinates: X = injection start, Y = injection end, Z = observation layer
+        // Plane: x = y (start = end) - points exist where y >= x (end >= start)
+        const planeVertices = new Float32Array([
+            // Plane: x = y (teal) - diagonal in XY, spans all Z
+            -1.0, -1.0, -1.0,
+            -1.0, -1.0,  1.0,
+             1.0,  1.0, -1.0,
+            
+            -1.0, -1.0,  1.0,
+             1.0,  1.0,  1.0,
+             1.0,  1.0, -1.0,
+        ]);
+        const planeColors = new Float32Array([
+            // Faint teal (end >= start constraint)
+            0.2, 0.4, 0.5,
+            0.2, 0.4, 0.5,
+            0.2, 0.4, 0.5,
+            0.2, 0.4, 0.5,
+            0.2, 0.4, 0.5,
+            0.2, 0.4, 0.5,
+        ]);
+        
+        const planeBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, planeBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, planeVertices, gl.STATIC_DRAW);
+        
+        const planeColorBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, planeColorBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, planeColors, gl.STATIC_DRAW);
+        
+        // Selection line buffer (for showing the clicked injection range)
+        const selectionLineBuffer = gl.createBuffer();
+        const selectionLineColorBuffer = gl.createBuffer();
+        let selectionLineVertexCount = 0;
+        let selectionLineFlagCount = 0;
+        
+        // Function to update selection line
+        function updateSelectionLine(start, end) {
+            if (!rawData) return;
+            
+            const steeredValues = rawData.steered[start]?.[end];
+            if (!steeredValues) return;
+            
+            const numLayers = rawData.base.length;
+            const maxStart = Math.max(...Object.keys(rawData.steered).map(Number));
+            
+            const positions = [];
+            const colors = [];
+            
+            // Fixed X and Y coordinates for this injection range
+            const x = (start / maxStart) * 2 - 1;
+            const y = (end / maxStart) * 2 - 1;
+            
+            // Extension amount (how far beyond the data range to extend)
+            const extension = 0.3;
+            
+            // Add leading extension (before layer 0)
+            positions.push(x, y, -1 - extension);
+            colors.push(0.2, 0.6, 0.8); // Cyan-ish
+            
+            // Add all data points
+            for (let layer = 0; layer < numLayers; layer++) {
+                const z = (layer / numLayers) * 2 - 1;
+                positions.push(x, y, z);
+                
+                // Color: gradient from cyan to gold along the line
+                const t = layer / (numLayers - 1);
+                colors.push(
+                    0.3 + t * 0.7,      // R: 0.3 -> 1.0
+                    0.8 - t * 0.3,      // G: 0.8 -> 0.5
+                    0.8 - t * 0.6       // B: 0.8 -> 0.2
+                );
+            }
+            
+            // Add trailing extension (beyond layer 64)
+            positions.push(x, y, 1 + extension);
+            colors.push(1.0, 0.4, 0.1); // Gold/orange
+            
+            // Add a "flag" at the end to make it more visible
+            // Small perpendicular lines at the end
+            const flagSize = 0.08;
+            const flagZ = 1 + extension;
+            
+            // Vertical tick
+            positions.push(x, y - flagSize, flagZ);
+            colors.push(1.0, 0.8, 0.2);
+            positions.push(x, y + flagSize, flagZ);
+            colors.push(1.0, 0.8, 0.2);
+            
+            // Horizontal tick
+            positions.push(x - flagSize, y, flagZ);
+            colors.push(1.0, 0.8, 0.2);
+            positions.push(x + flagSize, y, flagZ);
+            colors.push(1.0, 0.8, 0.2);
+            
+            selectionLineVertexCount = numLayers + 2; // Main line only (extensions included)
+            selectionLineFlagCount = 4; // Flag vertices
+            
+            gl.bindBuffer(gl.ARRAY_BUFFER, selectionLineBuffer);
+            gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(positions), gl.DYNAMIC_DRAW);
+            
+            gl.bindBuffer(gl.ARRAY_BUFFER, selectionLineColorBuffer);
+            gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(colors), gl.DYNAMIC_DRAW);
+        }
+        
+        // Create point buffers
+        const positionBuffer = gl.createBuffer();
+        const valueBuffer = gl.createBuffer();
+        const baseValueBuffer = gl.createBuffer();
+        const layerBuffer = gl.createBuffer();
+        const indexBuffer = gl.createBuffer();
+        
+        // Store positions for depth sorting
+        let allPositions = null;
+        let sortedIndices = null;
+        let lastSortTime = 0;
+        
+        // Load data
+        async function loadData() {
+            const response = await fetch('logit_lens_grid_sweep.json');
+            const data = await response.json();
+            
+            // Store raw data for click inspection
+            rawData = data;
+            
+            const positions = [];
+            const values = [];
+            const baseValues = [];
+            const layers = [];
+            pointMetadata = []; // Reset
+            
+            const numLayers = data.base.length;
+            const injectionStarts = Object.keys(data.steered).map(Number).sort((a,b) => a-b);
+            
+            // Normalize coordinates to [-1, 1] range
+            const maxStart = Math.max(...injectionStarts);
+            
+            let globalMax = Math.max(...data.base);
+            
+            // Process each injection configuration
+            for (const startKey of Object.keys(data.steered)) {
+                const start = parseInt(startKey);
+                const ends = data.steered[startKey];
+                
+                for (const endKey of Object.keys(ends)) {
+                    const end = parseInt(endKey);
+                    const layerValues = ends[endKey];
+                    
+                    for (let layer = 0; layer < layerValues.length; layer++) {
+                        const value = layerValues[layer];
+                        const baseValue = data.base[layer];
+                        
+                        globalMax = Math.max(globalMax, value);
+                        
+                        // Map to 3D coordinates
+                        // X: injection start (normalized)
+                        // Y: injection end (normalized)  
+                        // Z: observation layer (normalized)
+                        const x = (start / maxStart) * 2 - 1;
+                        const y = (end / maxStart) * 2 - 1;
+                        const z = (layer / numLayers) * 2 - 1;
+                        
+                        positions.push(x, y, z);
+                        values.push(value);
+                        baseValues.push(baseValue);
+                        layers.push(layer);
+                        
+                        // Store metadata for this point
+                        pointMetadata.push({ start, end, layer });
+                    }
+                }
+            }
+            
+            pointCount = positions.length / 3;
+            maxValue = globalMax;
+            filteredMaxValue = globalMax;
+            allValues = values.slice(); // Store for recalculation
+            allBaseValues = baseValues.slice(); // Store base values for diff mode
+            allPositions = new Float32Array(positions); // Store for sorting
+            
+            // Create initial indices (0, 1, 2, ...)
+            sortedIndices = new Uint32Array(pointCount);
+            for (let i = 0; i < pointCount; i++) {
+                sortedIndices[i] = i;
+            }
+            
+            // Upload to GPU
+            gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+            gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(positions), gl.STATIC_DRAW);
+            
+            gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
+            gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, sortedIndices, gl.DYNAMIC_DRAW);
+            
+            gl.bindBuffer(gl.ARRAY_BUFFER, valueBuffer);
+            gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(values), gl.STATIC_DRAW);
+            
+            gl.bindBuffer(gl.ARRAY_BUFFER, baseValueBuffer);
+            gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(baseValues), gl.STATIC_DRAW);
+            
+            gl.bindBuffer(gl.ARRAY_BUFFER, layerBuffer);
+            gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(layers), gl.STATIC_DRAW);
+            
+            // Update stats
+            document.getElementById('maxValue').textContent = globalMax.toFixed(2);
+            document.getElementById('rangeValue').textContent = `1-${maxStart}`;
+            
+            dataLoaded = true;
+            document.getElementById('loading').classList.add('hidden');
+            
+            console.log(`Loaded ${pointCount} points, max value: ${globalMax}`);
+        }
+        
+        // Camera state
+        let cameraDistance = 4;
+        let rotationX = 0.4;
+        let rotationY = -0.5;
+        // Center on layer 55: z = (55/65)*2-1 ≈ 0.69
+        let panX = 0, panY = 0, panZ = 0.69;
+        // Auto-rotate disabled
+        
+        // Control state
+        // 0: base, 1: steered, 2: diff absolute, 3: diff relative
+        let viewMode = 2; // Default to absolute delta
+        // Slice ranges (normalized -1 to 1)
+        let sliceX = [-1, 1];
+        let sliceY = [-1, 1];
+        let sliceZ = [-1, 1];
+        let colorScaleMin = -4; // -4%
+        let colorScaleMax = 100; // +100%
+        let colorScaleManual = true; // manual range set
+        let threshold = 0.1; // Value threshold
+        let pointSize = 0.5; // Point size
+        let opacity = 1.0; // Full opacity
+        let steepness = 3.2; // Fade steepness
+        let opacityGamma = 3.7; // Opacity gamma
+        let intensityEffect = 0.82; // Intensity → Opacity 82%
+        let clipToScale = false; // hide values outside color scale range
+        
+        // Mouse interaction
+        let isDragging = false;
+        let isMouseDown = false;
+        let lastMouse = { x: 0, y: 0 };
+        let dragStartMouse = { x: 0, y: 0 };
+        
+        canvas.addEventListener('mousedown', e => {
+            isMouseDown = true;
+            isDragging = false; // Don't set dragging until we actually move
+            lastMouse = { x: e.clientX, y: e.clientY };
+            dragStartMouse = { x: e.clientX, y: e.clientY };
+            // Camera now user-controlled
+        });
+        
+        canvas.addEventListener('mousemove', e => {
+            if (!isMouseDown) return;
+            
+            const dx = e.clientX - lastMouse.x;
+            const dy = e.clientY - lastMouse.y;
+            
+            // Only consider it a drag if we've moved more than a few pixels
+            const totalDx = e.clientX - dragStartMouse.x;
+            const totalDy = e.clientY - dragStartMouse.y;
+            if (Math.abs(totalDx) > 3 || Math.abs(totalDy) > 3) {
+                isDragging = true;
+            }
+            
+            if (e.shiftKey) {
+                // Pan
+                panX += dx * 0.002;
+                panY -= dy * 0.002;
+            } else {
+                // Rotate
+                rotationY += dx * 0.005;
+                rotationX += dy * 0.005;
+                rotationX = Math.max(-Math.PI/2, Math.min(Math.PI/2, rotationX));
+            }
+            
+            lastMouse = { x: e.clientX, y: e.clientY };
+        });
+        
+        canvas.addEventListener('mouseup', () => { isMouseDown = false; });
+        canvas.addEventListener('mouseleave', () => { isMouseDown = false; isDragging = false; });
+        
+        canvas.addEventListener('wheel', e => {
+            e.preventDefault();
+            cameraDistance *= 1 + e.deltaY * 0.001;
+            cameraDistance = Math.max(1.5, Math.min(20, cameraDistance));
+        });
+        
+        // UI controls
+        const thresholdSlider = document.getElementById('thresholdSlider');
+        const sizeSlider = document.getElementById('sizeSlider');
+        
+        // Slice range controls
+        function setupSliceControl(axis, labelId, minRange, maxRange) {
+            const minSlider = document.getElementById(`slice${axis}Min`);
+            const maxSlider = document.getElementById(`slice${axis}Max`);
+            const label = document.getElementById(labelId);
+            
+            const axisRanges = { X: [1, 63], Y: [1, 63], Z: [0, 64] };
+            const [rangeMin, rangeMax] = axisRanges[axis];
+            
+            function update() {
+                let minVal = parseInt(minSlider.value);
+                let maxVal = parseInt(maxSlider.value);
+                
+                // Ensure min <= max
+                if (minVal > maxVal) {
+                    if (this === minSlider) maxSlider.value = minVal;
+                    else minSlider.value = maxVal;
+                    minVal = parseInt(minSlider.value);
+                    maxVal = parseInt(maxSlider.value);
+                }
+                
+                // Convert 0-100 to normalized -1 to 1
+                const normMin = (minVal / 100) * 2 - 1;
+                const normMax = (maxVal / 100) * 2 - 1;
+                
+                // Update state
+                if (axis === 'X') sliceX = [normMin, normMax];
+                else if (axis === 'Y') sliceY = [normMin, normMax];
+                else sliceZ = [normMin, normMax];
+                
+                // Update label with actual layer numbers
+                const displayMin = Math.round(rangeMin + (minVal / 100) * (rangeMax - rangeMin));
+                const displayMax = Math.round(rangeMin + (maxVal / 100) * (rangeMax - rangeMin));
+                label.textContent = `${displayMin}-${displayMax}`;
+                
+                // Recalculate color scale for new slice
+                if (autoScaleColors) updateFilteredMax();
+            }
+            
+            minSlider.addEventListener('input', update);
+            maxSlider.addEventListener('input', update);
+        }
+        
+        setupSliceControl('X', 'sliceXValue');
+        setupSliceControl('Y', 'sliceYValue');
+        setupSliceControl('Z', 'sliceZValue');
+        
+        // Color scale range control
+        const colorScaleMinSlider = document.getElementById('colorScaleMin');
+        const colorScaleMaxSlider = document.getElementById('colorScaleMax');
+        const colorScaleLabel = document.getElementById('colorScaleValue');
+        
+        function updateColorScaleLabel() {
+            if (colorScaleMin === -100 && colorScaleMax === 100) {
+                colorScaleLabel.textContent = 'auto';
+                colorScaleManual = false;
+            } else {
+                // Show as percentage with sign
+                const minStr = colorScaleMin >= 0 ? `+${colorScaleMin}%` : `${colorScaleMin}%`;
+                const maxStr = colorScaleMax >= 0 ? `+${colorScaleMax}%` : `${colorScaleMax}%`;
+                colorScaleLabel.textContent = `${minStr} to ${maxStr}`;
+                colorScaleManual = true;
+            }
+        }
+        
+        colorScaleMinSlider.addEventListener('input', e => {
+            colorScaleMin = parseInt(e.target.value);
+            if (colorScaleMin > colorScaleMax) {
+                colorScaleMax = colorScaleMin;
+                colorScaleMaxSlider.value = colorScaleMax;
+            }
+            updateColorScaleLabel();
+        });
+        
+        colorScaleMaxSlider.addEventListener('input', e => {
+            colorScaleMax = parseInt(e.target.value);
+            if (colorScaleMax < colorScaleMin) {
+                colorScaleMin = colorScaleMax;
+                colorScaleMinSlider.value = colorScaleMin;
+            }
+            updateColorScaleLabel();
+        });
+        
+        thresholdSlider.addEventListener('input', e => {
+            threshold = Math.pow(10, (e.target.value / 100) * 6 - 4); // Log scale 0.0001 to 100
+            document.getElementById('thresholdValue').textContent = threshold < 1 ? threshold.toFixed(4) : threshold.toFixed(1);
+        });
+        
+        sizeSlider.addEventListener('input', e => {
+            pointSize = (e.target.value / 25); // Range: 0.4 to 4.0
+            document.getElementById('sizeValue').textContent = pointSize.toFixed(1);
+            console.log('Point size slider changed:', pointSize, '-> uniform:', pointSize * 40);
+        });
+        
+        const opacitySlider = document.getElementById('opacitySlider');
+        opacitySlider.addEventListener('input', e => {
+            opacity = e.target.value / 100;
+            document.getElementById('opacityValue').textContent = opacity.toFixed(2);
+        });
+        
+        const steepnessSlider = document.getElementById('steepnessSlider');
+        steepnessSlider.addEventListener('input', e => {
+            // Map 5-100 to 0.5-10.0
+            steepness = e.target.value / 10;
+            document.getElementById('steepnessValue').textContent = steepness.toFixed(1);
+        });
+        
+        const opacityGammaSlider = document.getElementById('opacityGammaSlider');
+        opacityGammaSlider.addEventListener('input', e => {
+            // Map 10-50 to 1.0-5.0
+            opacityGamma = e.target.value / 10;
+            document.getElementById('opacityGammaValue').textContent = opacityGamma.toFixed(1);
+        });
+        
+        const intensityOpacitySlider = document.getElementById('intensityOpacitySlider');
+        intensityOpacitySlider.addEventListener('input', e => {
+            intensityEffect = e.target.value / 100;
+            document.getElementById('intensityOpacityValue').textContent = Math.round(intensityEffect * 100) + '%';
+        });
+        
+        const clipToScaleToggle = document.getElementById('clipToScaleToggle');
+        clipToScaleToggle.addEventListener('change', e => {
+            clipToScale = e.target.checked;
+            console.log('Clip to scale:', clipToScale);
+        });
+        
+        document.querySelectorAll('.view-mode-btn').forEach(btn => {
+            btn.addEventListener('click', e => {
+                document.querySelectorAll('.view-mode-btn').forEach(b => b.classList.remove('active'));
+                e.target.classList.add('active');
+                // 0: base, 1: steered, 2: diff absolute, 3: diff relative
+                const mode = e.target.dataset.mode;
+                viewMode = mode === 'base' ? 0 : 
+                           mode === 'steered' ? 1 : 
+                           mode === 'diff' ? 2 : 
+                           mode === 'diffrel' ? 3 : 1;
+                console.log('View mode changed to:', viewMode, '(' + mode + ')');
+                // Recalculate scale when switching modes
+                if (autoScaleColors) updateFilteredMax();
+            });
+        });
+        
+        const autoScaleToggle = document.getElementById('autoScaleToggle');
+        autoScaleToggle.addEventListener('change', e => {
+            autoScaleColors = e.target.checked;
+            console.log('Auto-scale toggled:', autoScaleColors);
+            updateFilteredMax();
+        });
+        
+        function updateFilteredMax() {
+            if (!dataLoaded) {
+                console.log('Data not loaded yet');
+                return;
+            }
+            if (!autoScaleColors) {
+                filteredMaxValue = maxValue;
+                console.log('Auto-scale off, using global max:', maxValue);
+                return;
+            }
+            
+            // Compute display values based on mode
+            // 0: base, 1: steered, 2: diff absolute, 3: diff relative
+            let displayValues;
+            if (viewMode === 0) {
+                // Base values
+                displayValues = allBaseValues.slice();
+            } else if (viewMode === 1) {
+                // Steered values
+                displayValues = allValues.slice();
+            } else if (viewMode === 2) {
+                // Diff absolute
+                displayValues = allValues.map((v, i) => v - allBaseValues[i]);
+            } else if (viewMode === 3) {
+                // Diff relative (percentage)
+                displayValues = allValues.map((v, i) => {
+                    const base = allBaseValues[i];
+                    return base > 0.001 ? (v - base) / base : 0;
+                });
+            } else {
+                displayValues = allValues;
+            }
+            
+            // Find values above threshold AND within current slice
+            const filtered = [];
+            for (let i = 0; i < displayValues.length; i++) {
+                // Get position for this point
+                const px = allPositions[i * 3];
+                const py = allPositions[i * 3 + 1];
+                const pz = allPositions[i * 3 + 2];
+                
+                // Check if within slice bounds (with small margin for edge smoothing)
+                const margin = 0.05;
+                const inSlice = px >= sliceX[0] - margin && px <= sliceX[1] + margin &&
+                               py >= sliceY[0] - margin && py <= sliceY[1] + margin &&
+                               pz >= sliceZ[0] - margin && pz <= sliceZ[1] + margin;
+                
+                if (inSlice && Math.abs(allValues[i]) >= threshold) {
+                    filtered.push(displayValues[i]);
+                }
+            }
+            
+            console.log('Threshold:', threshold.toFixed(2), 'Filtered count:', filtered.length, 'Mode:', viewMode,
+                       'Slice Z:', sliceZ[0].toFixed(2), 'to', sliceZ[1].toFixed(2));
+            
+            if (filtered.length > 0) {
+                // For diff modes, use symmetric scaling around 0
+                if (viewMode === 2 || viewMode === 3) {
+                    const absFiltered = filtered.map(Math.abs);
+                    absFiltered.sort((a, b) => a - b);
+                    const p90Index = Math.floor(absFiltered.length * 0.90);
+                    const p90Value = absFiltered[p90Index];
+                    const maxAbs = absFiltered[absFiltered.length - 1];
+                    // Use 90th percentile of absolute differences for symmetric scaling
+                    filteredMaxValue = p90Value;
+                    console.log('Diff mode - p90 abs diff:', p90Value.toFixed(2), 'max abs:', maxAbs.toFixed(2));
+                } else {
+                    // Normal mode - use 75th percentile
+                    const absFiltered = filtered.map(Math.abs);
+                    absFiltered.sort((a, b) => a - b);
+                    const medianIndex = Math.floor(absFiltered.length * 0.5);
+                    const p75Index = Math.floor(absFiltered.length * 0.75);
+                    const medianValue = absFiltered[medianIndex];
+                    const p75Value = absFiltered[p75Index];
+                    const maxFiltered = absFiltered[absFiltered.length - 1];
+                    
+                    filteredMaxValue = p75Value;
+                    console.log('min:', absFiltered[0].toFixed(2), 'median:', medianValue.toFixed(2), 
+                               'p75:', p75Value.toFixed(2), 'max:', maxFiltered.toFixed(2), 
+                               '-> using:', filteredMaxValue.toFixed(2));
+                }
+            } else {
+                filteredMaxValue = maxValue;
+                console.log('No values above threshold, using global max');
+            }
+        }
+        
+        // Update filtered max when threshold changes
+        const origThresholdHandler = thresholdSlider.oninput;
+        thresholdSlider.addEventListener('input', () => {
+            if (autoScaleColors) updateFilteredMax();
+        });
+        
+        // Setup legend gradient
+        const legendGradient = document.getElementById('legendGradient');
+        legendGradient.style.background = 'linear-gradient(90deg, #001462, #258234, #416331, #735683, #865006, #987622, #988362)';
+        
+        // Resize handler
+        function resize() {
+            const dpr = window.devicePixelRatio || 1;
+            canvas.width = window.innerWidth * dpr;
+            canvas.height = window.innerHeight * dpr;
+            gl.viewport(0, 0, canvas.width, canvas.height);
+        }
+        window.addEventListener('resize', resize);
+        resize();
+        
+        // Depth sorting function - sorts points back-to-front relative to camera
+        function sortPointsByDepth(eye) {
+            if (!allPositions || !sortedIndices) return;
+            
+            // Compute squared distance from camera for each point
+            const depths = new Float32Array(pointCount);
+            for (let i = 0; i < pointCount; i++) {
+                const px = allPositions[i * 3];
+                const py = allPositions[i * 3 + 1];
+                const pz = allPositions[i * 3 + 2];
+                // Distance from camera (we want back-to-front, so larger = drawn first)
+                depths[i] = (px - eye[0]) ** 2 + (py - eye[1]) ** 2 + (pz - eye[2]) ** 2;
+            }
+            
+            // Create array of indices and sort by depth (descending = back first)
+            const indices = Array.from({length: pointCount}, (_, i) => i);
+            indices.sort((a, b) => depths[b] - depths[a]);
+            
+            // Copy to typed array
+            for (let i = 0; i < pointCount; i++) {
+                sortedIndices[i] = indices[i];
+            }
+            
+            // Upload to GPU
+            gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
+            gl.bufferSubData(gl.ELEMENT_ARRAY_BUFFER, 0, sortedIndices);
+        }
+        
+        // Render loop
+        let startTime = performance.now();
+        let lastEye = [0, 0, 0];
+        
+        function render() {
+            const time = (performance.now() - startTime) / 1000;
+            
+            // Auto-rotate disabled
+            
+            // Clear
+            gl.clearColor(0.039, 0.039, 0.059, 1.0);
+            gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+            gl.enable(gl.BLEND);
+            gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+            
+            const aspect = canvas.width / canvas.height;
+            const projection = perspective(Math.PI / 4, aspect, 0.1, 100);
+            
+            // Camera - orbit around center point
+            const center = [panX, panY, panZ];
+            const eye = [
+                center[0] + Math.sin(rotationY) * Math.cos(rotationX) * cameraDistance,
+                center[1] + Math.sin(rotationX) * cameraDistance,
+                center[2] + Math.cos(rotationY) * Math.cos(rotationX) * cameraDistance
+            ];
+            const view = lookAt(eye, center, [0, 1, 0]);
+            let model = identity();
+            
+            // Sort points by depth when camera moves (throttled to every 100ms)
+            if (dataLoaded && time - lastSortTime > 0.1) {
+                const eyeChanged = Math.abs(eye[0] - lastEye[0]) > 0.01 ||
+                                   Math.abs(eye[1] - lastEye[1]) > 0.01 ||
+                                   Math.abs(eye[2] - lastEye[2]) > 0.01;
+                if (eyeChanged) {
+                    sortPointsByDepth(eye);
+                    lastEye = [...eye];
+                    lastSortTime = time;
+                }
+            }
+            
+            // Draw axes and grid (with depth test)
+            gl.enable(gl.DEPTH_TEST);
+            gl.depthMask(true);
+            gl.useProgram(gridProgram);
+            gl.uniformMatrix4fv(gridLocs.uProjection, false, projection);
+            gl.uniformMatrix4fv(gridLocs.uView, false, view);
+            gl.uniformMatrix4fv(gridLocs.uModel, false, model);
+            
+            gl.bindBuffer(gl.ARRAY_BUFFER, axisBuffer);
+            gl.enableVertexAttribArray(gridLocs.aPosition);
+            gl.vertexAttribPointer(gridLocs.aPosition, 3, gl.FLOAT, false, 0, 0);
+            
+            gl.bindBuffer(gl.ARRAY_BUFFER, axisColorBuffer);
+            gl.enableVertexAttribArray(gridLocs.aColor);
+            gl.vertexAttribPointer(gridLocs.aColor, 3, gl.FLOAT, false, 0, 0);
+            
+            gl.drawArrays(gl.LINES, 0, axisVertexCount);
+            
+            // Draw diagonal constraint plane (y = z) with transparency
+            gl.enable(gl.BLEND);
+            gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+            
+            gl.bindBuffer(gl.ARRAY_BUFFER, planeBuffer);
+            gl.enableVertexAttribArray(gridLocs.aPosition);
+            gl.vertexAttribPointer(gridLocs.aPosition, 3, gl.FLOAT, false, 0, 0);
+            
+            gl.bindBuffer(gl.ARRAY_BUFFER, planeColorBuffer);
+            gl.enableVertexAttribArray(gridLocs.aColor);
+            gl.vertexAttribPointer(gridLocs.aColor, 3, gl.FLOAT, false, 0, 0);
+            
+            gl.drawArrays(gl.TRIANGLES, 0, 6);
+
+            // No depth testing for points - we sort them back-to-front instead
+            gl.disable(gl.DEPTH_TEST);
+            // Standard alpha blending (works correctly with sorted order)
+            gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+            
+            // Draw points
+            if (dataLoaded) {
+                gl.useProgram(pointProgram);
+                
+                gl.uniformMatrix4fv(pointLocs.uProjection, false, projection);
+                gl.uniformMatrix4fv(pointLocs.uView, false, view);
+                gl.uniformMatrix4fv(pointLocs.uModel, false, model);
+                gl.uniform1f(pointLocs.uPointSize, pointSize * 40);
+                gl.uniform1f(pointLocs.uThreshold, threshold);
+                gl.uniform1f(pointLocs.uSteepness, steepness);
+                gl.uniform1f(pointLocs.uOpacityGamma, opacityGamma);
+                gl.uniform1f(pointLocs.uIntensityEffect, intensityEffect);
+                gl.uniform1i(pointLocs.uClipToScale, clipToScale ? 1 : 0);
+                gl.uniform1i(pointLocs.uViewMode, viewMode);
+                gl.uniform2f(pointLocs.uSliceX, sliceX[0], sliceX[1]);
+                gl.uniform2f(pointLocs.uSliceY, sliceY[0], sliceY[1]);
+                gl.uniform2f(pointLocs.uSliceZ, sliceZ[0], sliceZ[1]);
+                // Calculate color scale min/max
+                let baseMax = autoScaleColors ? filteredMaxValue : maxValue;
+                let effectiveMin, effectiveMax;
+                
+                if (viewMode === 2 || viewMode === 3) {
+                    // Diff modes (absolute and relative): asymmetric range from min% to max% of baseMax
+                    if (colorScaleManual) {
+                        effectiveMin = baseMax * (colorScaleMin / 100);
+                        effectiveMax = baseMax * (colorScaleMax / 100);
+                    } else {
+                        effectiveMin = -baseMax;
+                        effectiveMax = baseMax;
+                    }
+                } else {
+                    // Absolute mode: 0 to max
+                    let baseMin = 0;
+                    if (colorScaleManual) {
+                        effectiveMin = baseMin + (colorScaleMin / 100) * (baseMax - baseMin);
+                        effectiveMax = baseMin + (colorScaleMax / 100) * (baseMax - baseMin);
+                    } else {
+                        effectiveMin = baseMin;
+                        effectiveMax = baseMax;
+                    }
+                }
+                
+                gl.uniform1f(pointLocs.uMaxValue, effectiveMax);
+                gl.uniform1f(pointLocs.uMinValue, effectiveMin);
+                gl.uniform1f(pointLocs.uTime, time);
+                gl.uniform1f(pointLocs.uOpacity, opacity);
+                
+                // Debug once per second
+                if (Math.floor(time) !== Math.floor(time - 0.016)) {
+                    const modeStr = ['base', 'steered', 'Δabs', 'Δrel%'][viewMode];
+                    const suffix = viewMode === 3 ? '%' : '';
+                    console.log(`Color scale [${modeStr}]:`, (effectiveMin * (viewMode === 3 ? 100 : 1)).toFixed(1) + suffix, 
+                               'to', (effectiveMax * (viewMode === 3 ? 100 : 1)).toFixed(1) + suffix,
+                               colorScaleManual ? '(manual)' : '(auto)');
+                }
+                
+                gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+                gl.enableVertexAttribArray(pointLocs.aPosition);
+                gl.vertexAttribPointer(pointLocs.aPosition, 3, gl.FLOAT, false, 0, 0);
+                
+                gl.bindBuffer(gl.ARRAY_BUFFER, valueBuffer);
+                gl.enableVertexAttribArray(pointLocs.aValue);
+                gl.vertexAttribPointer(pointLocs.aValue, 1, gl.FLOAT, false, 0, 0);
+                
+                gl.bindBuffer(gl.ARRAY_BUFFER, baseValueBuffer);
+                gl.enableVertexAttribArray(pointLocs.aBaseValue);
+                gl.vertexAttribPointer(pointLocs.aBaseValue, 1, gl.FLOAT, false, 0, 0);
+                
+                gl.bindBuffer(gl.ARRAY_BUFFER, layerBuffer);
+                gl.enableVertexAttribArray(pointLocs.aLayer);
+                gl.vertexAttribPointer(pointLocs.aLayer, 1, gl.FLOAT, false, 0, 0);
+                
+                // Draw with sorted indices (back-to-front for correct transparency)
+                gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
+                gl.drawElements(gl.POINTS, pointCount, gl.UNSIGNED_INT, 0);
+                
+                // Update visible point count (approximate based on threshold)
+                const visibleEstimate = viewMode === 0 ? 
+                    Math.floor(pointCount / 65) : pointCount;
+                document.getElementById('pointCount').textContent = 
+                    visibleEstimate.toLocaleString();
+                    
+                // Update max value display based on auto-scale
+                const displayMax = autoScaleColors ? filteredMaxValue : maxValue;
+                document.getElementById('maxValue').textContent = displayMax.toFixed(2);
+            }
+            
+            // Draw selection line AFTER points (so it's always on top)
+            if (selectionLineVertexCount > 0 && selectedPoint !== null) {
+                // Disable depth test so line is always visible
+                gl.disable(gl.DEPTH_TEST);
+                
+                gl.useProgram(gridProgram);
+                gl.uniformMatrix4fv(gridLocs.uProjection, false, projection);
+                gl.uniformMatrix4fv(gridLocs.uView, false, view);
+                gl.uniformMatrix4fv(gridLocs.uModel, false, model);
+                
+                gl.bindBuffer(gl.ARRAY_BUFFER, selectionLineBuffer);
+                gl.enableVertexAttribArray(gridLocs.aPosition);
+                gl.vertexAttribPointer(gridLocs.aPosition, 3, gl.FLOAT, false, 0, 0);
+                
+                gl.bindBuffer(gl.ARRAY_BUFFER, selectionLineColorBuffer);
+                gl.enableVertexAttribArray(gridLocs.aColor);
+                gl.vertexAttribPointer(gridLocs.aColor, 3, gl.FLOAT, false, 0, 0);
+                
+                // Draw main line (includes extensions)
+                gl.drawArrays(gl.LINE_STRIP, 0, selectionLineVertexCount);
+                
+                // Draw flag lines at the end (two separate line segments)
+                if (selectionLineFlagCount >= 4) {
+                    gl.drawArrays(gl.LINES, selectionLineVertexCount, selectionLineFlagCount);
+                }
+            }
+            
+            requestAnimationFrame(render);
+        }
+        
+        // ========================================
+        // Click detection and detail panel
+        // ========================================
+        
+        const detailPanel = document.getElementById('detailPanel');
+        const detailClose = document.getElementById('detailClose');
+        const detailChart = document.getElementById('detailChart');
+        const detailCtx = detailChart.getContext('2d');
+        
+        // Close panel
+        detailClose.addEventListener('click', () => {
+            detailPanel.classList.remove('visible');
+            selectedPoint = null;
+            selectionLineVertexCount = 0; // Hide the 3D line
+            selectionLineFlagCount = 0;
+        });
+        
+        // Matrix math helpers for unprojection
+        function multiplyMatrixVector(m, v) {
+            return [
+                m[0]*v[0] + m[4]*v[1] + m[8]*v[2] + m[12]*v[3],
+                m[1]*v[0] + m[5]*v[1] + m[9]*v[2] + m[13]*v[3],
+                m[2]*v[0] + m[6]*v[1] + m[10]*v[2] + m[14]*v[3],
+                m[3]*v[0] + m[7]*v[1] + m[11]*v[2] + m[15]*v[3]
+            ];
+        }
+        
+        function invertMatrix(m) {
+            const inv = new Float32Array(16);
+            inv[0] = m[5]*m[10]*m[15] - m[5]*m[11]*m[14] - m[9]*m[6]*m[15] + m[9]*m[7]*m[14] + m[13]*m[6]*m[11] - m[13]*m[7]*m[10];
+            inv[4] = -m[4]*m[10]*m[15] + m[4]*m[11]*m[14] + m[8]*m[6]*m[15] - m[8]*m[7]*m[14] - m[12]*m[6]*m[11] + m[12]*m[7]*m[10];
+            inv[8] = m[4]*m[9]*m[15] - m[4]*m[11]*m[13] - m[8]*m[5]*m[15] + m[8]*m[7]*m[13] + m[12]*m[5]*m[11] - m[12]*m[7]*m[9];
+            inv[12] = -m[4]*m[9]*m[14] + m[4]*m[10]*m[13] + m[8]*m[5]*m[14] - m[8]*m[6]*m[13] - m[12]*m[5]*m[10] + m[12]*m[6]*m[9];
+            inv[1] = -m[1]*m[10]*m[15] + m[1]*m[11]*m[14] + m[9]*m[2]*m[15] - m[9]*m[3]*m[14] - m[13]*m[2]*m[11] + m[13]*m[3]*m[10];
+            inv[5] = m[0]*m[10]*m[15] - m[0]*m[11]*m[14] - m[8]*m[2]*m[15] + m[8]*m[3]*m[14] + m[12]*m[2]*m[11] - m[12]*m[3]*m[10];
+            inv[9] = -m[0]*m[9]*m[15] + m[0]*m[11]*m[13] + m[8]*m[1]*m[15] - m[8]*m[3]*m[13] - m[12]*m[1]*m[11] + m[12]*m[3]*m[9];
+            inv[13] = m[0]*m[9]*m[14] - m[0]*m[10]*m[13] - m[8]*m[1]*m[14] + m[8]*m[2]*m[13] + m[12]*m[1]*m[10] - m[12]*m[2]*m[9];
+            inv[2] = m[1]*m[6]*m[15] - m[1]*m[7]*m[14] - m[5]*m[2]*m[15] + m[5]*m[3]*m[14] + m[13]*m[2]*m[7] - m[13]*m[3]*m[6];
+            inv[6] = -m[0]*m[6]*m[15] + m[0]*m[7]*m[14] + m[4]*m[2]*m[15] - m[4]*m[3]*m[14] - m[12]*m[2]*m[7] + m[12]*m[3]*m[6];
+            inv[10] = m[0]*m[5]*m[15] - m[0]*m[7]*m[13] - m[4]*m[1]*m[15] + m[4]*m[3]*m[13] + m[12]*m[1]*m[7] - m[12]*m[3]*m[5];
+            inv[14] = -m[0]*m[5]*m[14] + m[0]*m[6]*m[13] + m[4]*m[1]*m[14] - m[4]*m[2]*m[13] - m[12]*m[1]*m[6] + m[12]*m[2]*m[5];
+            inv[3] = -m[1]*m[6]*m[11] + m[1]*m[7]*m[10] + m[5]*m[2]*m[11] - m[5]*m[3]*m[10] - m[9]*m[2]*m[7] + m[9]*m[3]*m[6];
+            inv[7] = m[0]*m[6]*m[11] - m[0]*m[7]*m[10] - m[4]*m[2]*m[11] + m[4]*m[3]*m[10] + m[8]*m[2]*m[7] - m[8]*m[3]*m[6];
+            inv[11] = -m[0]*m[5]*m[11] + m[0]*m[7]*m[9] + m[4]*m[1]*m[11] - m[4]*m[3]*m[9] - m[8]*m[1]*m[7] + m[8]*m[3]*m[5];
+            inv[15] = m[0]*m[5]*m[10] - m[0]*m[6]*m[9] - m[4]*m[1]*m[10] + m[4]*m[2]*m[9] + m[8]*m[1]*m[6] - m[8]*m[2]*m[5];
+            
+            let det = m[0]*inv[0] + m[1]*inv[4] + m[2]*inv[8] + m[3]*inv[12];
+            if (Math.abs(det) < 1e-10) return null;
+            det = 1.0 / det;
+            for (let i = 0; i < 16; i++) inv[i] *= det;
+            return inv;
+        }
+        
+        function multiplyMatrices(a, b) {
+            const result = new Float32Array(16);
+            for (let i = 0; i < 4; i++) {
+                for (let j = 0; j < 4; j++) {
+                    result[i + j * 4] = 
+                        a[i] * b[j * 4] + 
+                        a[i + 4] * b[j * 4 + 1] + 
+                        a[i + 8] * b[j * 4 + 2] + 
+                        a[i + 12] * b[j * 4 + 3];
+                }
+            }
+            return result;
+        }
+        
+        // Find closest point to click
+        function findClickedPoint(mouseX, mouseY) {
+            if (!dataLoaded || !allPositions) return null;
+            
+            const dpr = window.devicePixelRatio || 1;
+            const rect = canvas.getBoundingClientRect();
+            
+            // Convert to normalized device coordinates
+            const ndcX = ((mouseX - rect.left) / rect.width) * 2 - 1;
+            const ndcY = -((mouseY - rect.top) / rect.height) * 2 + 1;
+            
+            // Get current matrices
+            const aspect = canvas.width / canvas.height;
+            const proj = perspective(Math.PI / 4, aspect, 0.1, 100);
+            const center = [panX, panY, panZ];
+            const eye = [
+                center[0] + Math.sin(rotationY) * Math.cos(rotationX) * cameraDistance,
+                center[1] + Math.sin(rotationX) * cameraDistance,
+                center[2] + Math.cos(rotationY) * Math.cos(rotationX) * cameraDistance
+            ];
+            const viewMat = lookAt(eye, center, [0, 1, 0]);
+            
+            // Combined view-projection matrix and its inverse
+            const viewProj = multiplyMatrices(proj, viewMat);
+            const invViewProj = invertMatrix(viewProj);
+            if (!invViewProj) return null;
+            
+            // Unproject to get ray
+            const nearPoint = multiplyMatrixVector(invViewProj, [ndcX, ndcY, -1, 1]);
+            const farPoint = multiplyMatrixVector(invViewProj, [ndcX, ndcY, 1, 1]);
+            
+            // Perspective divide
+            const near = [nearPoint[0]/nearPoint[3], nearPoint[1]/nearPoint[3], nearPoint[2]/nearPoint[3]];
+            const far = [farPoint[0]/farPoint[3], farPoint[1]/farPoint[3], farPoint[2]/farPoint[3]];
+            
+            // Ray direction
+            const rayDir = [far[0] - near[0], far[1] - near[1], far[2] - near[2]];
+            const rayLen = Math.sqrt(rayDir[0]**2 + rayDir[1]**2 + rayDir[2]**2);
+            rayDir[0] /= rayLen; rayDir[1] /= rayLen; rayDir[2] /= rayLen;
+            
+            // Find closest point to ray
+            let bestDist = Infinity;
+            let bestIdx = -1;
+            
+            for (let i = 0; i < pointCount; i++) {
+                const px = allPositions[i * 3];
+                const py = allPositions[i * 3 + 1];
+                const pz = allPositions[i * 3 + 2];
+                
+                // Check if point is within current slice (approximately visible)
+                const margin = 0.05;
+                if (px < sliceX[0] - margin || px > sliceX[1] + margin ||
+                    py < sliceY[0] - margin || py > sliceY[1] + margin ||
+                    pz < sliceZ[0] - margin || pz > sliceZ[1] + margin) {
+                    continue;
+                }
+                
+                // Check if point passes threshold
+                if (Math.abs(allValues[i]) < threshold) continue;
+                
+                // Distance from point to ray
+                const toPoint = [px - near[0], py - near[1], pz - near[2]];
+                const t = toPoint[0]*rayDir[0] + toPoint[1]*rayDir[1] + toPoint[2]*rayDir[2];
+                if (t < 0) continue; // Behind camera
+                
+                const closestOnRay = [near[0] + t*rayDir[0], near[1] + t*rayDir[1], near[2] + t*rayDir[2]];
+                const dist = Math.sqrt(
+                    (px - closestOnRay[0])**2 + 
+                    (py - closestOnRay[1])**2 + 
+                    (pz - closestOnRay[2])**2
+                );
+                
+                // Account for distance from camera (points further away need less precision)
+                const screenDist = dist / (t * 0.1 + 0.1);
+                
+                if (screenDist < bestDist && screenDist < 0.15) {
+                    bestDist = screenDist;
+                    bestIdx = i;
+                }
+            }
+            
+            return bestIdx >= 0 ? bestIdx : null;
+        }
+        
+        // Draw the detail chart
+        function drawDetailChart(start, end, clickedLayer) {
+            if (!rawData) return;
+            
+            const steeredValues = rawData.steered[start]?.[end];
+            if (!steeredValues) return;
+            
+            const baseValues = rawData.base;
+            const numLayers = baseValues.length;
+            
+            // Resize canvas for HiDPI
+            const rect = detailChart.parentElement.getBoundingClientRect();
+            const dpr = window.devicePixelRatio || 1;
+            detailChart.width = rect.width * dpr;
+            detailChart.height = rect.height * dpr;
+            detailChart.style.width = rect.width + 'px';
+            detailChart.style.height = rect.height + 'px';
+            detailCtx.scale(dpr, dpr);
+            
+            const width = rect.width;
+            const height = rect.height;
+            const padding = { top: 20, right: 20, bottom: 40, left: 50 };
+            const chartWidth = width - padding.left - padding.right;
+            const chartHeight = height - padding.top - padding.bottom;
+            
+            // Clear
+            detailCtx.fillStyle = 'rgba(0,0,0,0)';
+            detailCtx.clearRect(0, 0, width, height);
+            
+            // Fixed Y-axis range 0-100
+            const yMin = 0;
+            const yMax = 100;
+            
+            // Coordinate transforms
+            const xScale = (layer) => padding.left + (layer / (numLayers - 1)) * chartWidth;
+            const yScale = (val) => padding.top + chartHeight - ((val - yMin) / (yMax - yMin)) * chartHeight;
+            
+            // Draw grid
+            detailCtx.strokeStyle = 'rgba(255,255,255,0.1)';
+            detailCtx.lineWidth = 1;
+            
+            // Horizontal grid lines
+            const numYTicks = 5;
+            for (let i = 0; i <= numYTicks; i++) {
+                const y = padding.top + (i / numYTicks) * chartHeight;
+                detailCtx.beginPath();
+                detailCtx.moveTo(padding.left, y);
+                detailCtx.lineTo(width - padding.right, y);
+                detailCtx.stroke();
+            }
+            
+            // Vertical grid lines
+            const numXTicks = 8;
+            for (let i = 0; i <= numXTicks; i++) {
+                const x = padding.left + (i / numXTicks) * chartWidth;
+                detailCtx.beginPath();
+                detailCtx.moveTo(x, padding.top);
+                detailCtx.lineTo(x, height - padding.bottom);
+                detailCtx.stroke();
+            }
+            
+            // Draw clicked layer indicator
+            if (clickedLayer !== null) {
+                const x = xScale(clickedLayer);
+                detailCtx.strokeStyle = 'rgba(255, 215, 0, 0.3)';
+                detailCtx.lineWidth = 2;
+                detailCtx.beginPath();
+                detailCtx.moveTo(x, padding.top);
+                detailCtx.lineTo(x, height - padding.bottom);
+                detailCtx.stroke();
+            }
+            
+            // Draw base line
+            detailCtx.strokeStyle = '#8888a0';
+            detailCtx.lineWidth = 2;
+            detailCtx.beginPath();
+            for (let i = 0; i < numLayers; i++) {
+                const x = xScale(i);
+                const y = yScale(baseValues[i]);
+                if (i === 0) detailCtx.moveTo(x, y);
+                else detailCtx.lineTo(x, y);
+            }
+            detailCtx.stroke();
+            
+            // Draw steered line
+            detailCtx.strokeStyle = '#4ecdc4';
+            detailCtx.lineWidth = 2.5;
+            detailCtx.beginPath();
+            for (let i = 0; i < numLayers; i++) {
+                const x = xScale(i);
+                const y = yScale(steeredValues[i]);
+                if (i === 0) detailCtx.moveTo(x, y);
+                else detailCtx.lineTo(x, y);
+            }
+            detailCtx.stroke();
+            
+            // Draw points at clicked layer
+            if (clickedLayer !== null) {
+                // Base point
+                detailCtx.fillStyle = '#8888a0';
+                detailCtx.beginPath();
+                detailCtx.arc(xScale(clickedLayer), yScale(baseValues[clickedLayer]), 5, 0, Math.PI * 2);
+                detailCtx.fill();
+                
+                // Steered point
+                detailCtx.fillStyle = '#4ecdc4';
+                detailCtx.beginPath();
+                detailCtx.arc(xScale(clickedLayer), yScale(steeredValues[clickedLayer]), 6, 0, Math.PI * 2);
+                detailCtx.fill();
+            }
+            
+            // Draw axes labels
+            detailCtx.fillStyle = '#8888a0';
+            detailCtx.font = '10px JetBrains Mono';
+            detailCtx.textAlign = 'center';
+            
+            // X axis label
+            detailCtx.fillText('Observation Layer', width / 2, height - 8);
+            
+            // X axis ticks
+            for (let i = 0; i <= numXTicks; i++) {
+                const layer = Math.round((i / numXTicks) * (numLayers - 1));
+                const x = xScale(layer);
+                detailCtx.fillText(layer.toString(), x, height - padding.bottom + 15);
+            }
+            
+            // Y axis label
+            detailCtx.save();
+            detailCtx.translate(12, height / 2);
+            detailCtx.rotate(-Math.PI / 2);
+            detailCtx.fillText('Logit Value', 0, 0);
+            detailCtx.restore();
+            
+            // Y axis ticks
+            detailCtx.textAlign = 'right';
+            for (let i = 0; i <= numYTicks; i++) {
+                const val = yMax - (i / numYTicks) * (yMax - yMin);
+                const y = padding.top + (i / numYTicks) * chartHeight;
+                detailCtx.fillText(val.toFixed(1), padding.left - 8, y + 3);
+            }
+        }
+        
+        // Handle click on canvas
+        canvas.addEventListener('click', (e) => {
+            // Don't trigger on drag
+            if (isDragging) {
+                isDragging = false; // Reset for next click
+                return;
+            }
+            
+            const pointIdx = findClickedPoint(e.clientX, e.clientY);
+            if (pointIdx !== null) {
+                const meta = pointMetadata[pointIdx];
+                const value = allValues[pointIdx];
+                
+                // Update panel info
+                document.getElementById('infoStart').textContent = `Layer ${meta.start}`;
+                document.getElementById('infoEnd').textContent = `Layer ${meta.end}`;
+                document.getElementById('infoLayer').textContent = `Layer ${meta.layer}`;
+                document.getElementById('infoValue').textContent = value.toFixed(2);
+                document.getElementById('detailSubtitle').textContent = `Injection [${meta.start}-${meta.end}]`;
+                
+                // Show panel
+                detailPanel.classList.add('visible');
+                selectedPoint = pointIdx;
+                
+                // Update 3D selection line
+                updateSelectionLine(meta.start, meta.end);
+                
+                // Draw chart after panel animation
+                setTimeout(() => drawDetailChart(meta.start, meta.end, meta.layer), 50);
+                
+                const baseValue = allBaseValues[pointIdx];
+                const deltaAbs = value - baseValue;
+                const deltaRel = baseValue > 0.001 ? (value - baseValue) / baseValue : 0;
+                console.log('Clicked point:', meta, 
+                    'value:', value.toFixed(2), 
+                    'base:', baseValue.toFixed(2),
+                    'Δabs:', deltaAbs.toFixed(2),
+                    'Δrel:', (deltaRel * 100).toFixed(1) + '%');
+            }
+        });
+        
+        // Note: isDragging is already defined in camera controls section
+        
+        // Redraw chart on window resize
+        window.addEventListener('resize', () => {
+            if (selectedPoint !== null && detailPanel.classList.contains('visible')) {
+                const meta = pointMetadata[selectedPoint];
+                setTimeout(() => drawDetailChart(meta.start, meta.end, meta.layer), 100);
+            }
+        });
+        
+        // Start
+        loadData().then(() => {
+            // Sync initial values from sliders
+            pointSize = sizeSlider.value / 25;
+            threshold = Math.pow(10, (thresholdSlider.value / 100) * 6 - 4);
+            opacity = opacitySlider.value / 100;
+            console.log('Initial values - pointSize:', pointSize, 'threshold:', threshold, 'opacity:', opacity);
+            render();
+        });
+    </script>
+</body>
+</html>
+
