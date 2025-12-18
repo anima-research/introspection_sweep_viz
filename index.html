@@ -558,8 +558,21 @@
             .detail-panel {
                 width: 100%;
                 max-width: none;
-                right: 0;
+                right: -100% !important;
                 height: 50vh;
+                top: auto;
+                bottom: 0;
+            }
+            
+            .detail-panel.visible {
+                right: 0 !important;
+            }
+            
+            .detail-close {
+                width: 44px;
+                height: 44px;
+                font-size: 24px;
+                min-width: 44px;
             }
             
             .control-group {
@@ -2272,11 +2285,16 @@
         const detailChart = document.getElementById('detailChart');
         const detailCtx = detailChart.getContext('2d');
         
-        // Close panel
-        detailClose.addEventListener('click', () => {
+        // Close panel (support both click and touch)
+        function closeDetailPanel() {
             detailPanel.classList.remove('visible');
             selectedPoint = null;
             selectionLineVertexCount = 0; // Hide the 3D line
+        }
+        detailClose.addEventListener('click', closeDetailPanel);
+        detailClose.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            closeDetailPanel();
             selectionLineFlagCount = 0;
         });
         
